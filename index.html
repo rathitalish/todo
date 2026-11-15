@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<!-- ===========================================================
+     MY FIRST APP: A TO-DO LIST  (version 10)
+     A web page has 3 parts:
+       1. HTML       = the things on the page (title, box, button)
+       2. CSS        = how they look (colors, sizes)
+       3. JavaScript = what they DO (add tasks, tick them off)
+
+     Features so far: dark mode, clear done tasks, due dates,
+     priority levels, and sorting High -> Medium -> Low.
+
+     NEW in version 5 (search for these words to find each bit):
+       NEW E = Edit a task (double-click it, or press the Edit button)
+       NEW F = Filter buttons (All / High / Medium / Low)
+       NEW C = Confetti when every task is done!
+
+     NEW in version 6:
+       NEW P2 = Click a colored tag to change a task's priority
+       NEW S2 = Search box that finds tasks as you type
+
+     NEW in version 7:
+       NEW N = "Still to do" counter for each priority
+       NEW D = Drag and drop to put tasks in your own order
+
+     NEW in version 8:
+       NEW R = Reminders: a banner at the top, plus pop-up notifications
+               (notifications only work while the app is open in a browser)
+
+     NEW in version 9:
+       NEW A = The first letter of a task is made a capital automatically
+       Dark mode has a new, calmer look (see "DARK MODE" in the CSS)
+
+     NEW in version 10:
+       NEW I = Installable app (works once it is hosted online).
+               Extra files: manifest.webmanifest, sw.js and the icons.
+               Tapping a reminder notification opens the app.
+     =========================================================== -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My To-Do List</title>
+
+  <!-- NEW I: these lines tell phones and computers "this can be an app".
+       The manifest has the app's name, colors and icons. -->
+  <meta name="theme-color" content="#6c5ce7">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-180.png">
+
+  <!-- ================= CSS: THE LOOKS ================= -->
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #6c5ce7;
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      color: #222;
+      width: 100%;
+      max-width: 500px;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+    }
+
+    .top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    h1 { margin: 0; }
+
+    .add-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+
+    input[type="text"] {
+      flex: 1;
+      min-width: 150px;
+      padding: 10px;
+      font-size: 16px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+    }
+
+    input[type="date"],
+    select {
+      padding: 10px;
+      font-size: 16px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      background: white;
+      color: #222;
+    }
+
+    button {
+      padding: 10px 14px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      background: #6c5ce7;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover { background: #5646c9; }
+
+    /* NEW F: the row of filter buttons */
+    .filter-row { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+    .filter-btn {
+      background: #dfe6e9;
+      color: #222;
+      font-size: 14px;
+      padding: 6px 12px;
+    }
+    .filter-btn:hover { background: #c8d1d5; }
+    /* The button you picked looks purple */
+    .filter-btn.active { background: #6c5ce7; color: white; }
+
+    /* NEW R: the reminder banner at the top.
+       Yellow = tasks due today. Red ("urgent") = something is overdue. */
+    .reminder {
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #fff3cd;
+      color: #7a5b00;
+      font-weight: bold;
+    }
+    .reminder.urgent { background: #fdecea; color: #b03a2e; }
+
+    /* NEW R: the "Turn on reminders" button */
+    .notify-btn { margin-top: 10px; font-size: 14px; padding: 6px 12px; }
+
+    /* A small helper text */
+    .hint { font-size: 13px; color: #777; margin: 10px 0 0 0; }
+
+    ul { list-style: none; padding: 0; margin: 10px 0 0 0; }
+
+    li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0 10px 10px;
+      border-bottom: 1px solid #eee;
+      border-left: 5px solid #ccc;
+      border-radius: 4px;
+    }
+
+    li.priority-high   { border-left-color: #e74c3c; }
+    li.priority-medium { border-left-color: #f39c12; }
+    li.priority-low    { border-left-color: #2ecc71; }
+
+    /* NEW D: drag and drop looks */
+    li { cursor: grab; }
+    li.dragging { opacity: 0.4; }                    /* the task you are carrying */
+    li.drag-over { box-shadow: 0 -3px 0 #6c5ce7; }   /* purple line where it will land */
+
+    .task-info { flex: 1; }
+    .task-text { font-size: 18px; }
+
+    /* NEW E: the box that appears when you edit a task */
+    .edit-box {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 18px;
+      min-width: 0;
+    }
+
+    .tag {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: bold;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-top: 4px;
+    }
+    .tag.high   { background: #e74c3c; }
+    .tag.medium { background: #f39c12; }
+    .tag.low    { background: #2ecc71; }
+
+    /* NEW P2: old tasks with no priority get a grey tag.
+       Every tag can be clicked, so it shows a pointer hand. */
+    .tag.none { background: #95a5a6; }
+    .tag { cursor: pointer; user-select: none; }
+
+    /* NEW S2: the search box */
+    .search-box { width: 100%; box-sizing: border-box; margin-top: 12px; }
+
+    .due { font-size: 13px; color: #777; margin-top: 2px; }
+    .due.overdue { color: #e74c3c; font-weight: bold; }
+
+    li.done .task-text { text-decoration: line-through; color: #aaa; }
+
+    /* NEW E: the small grey Edit button */
+    .edit { background: #636e72; padding: 6px 10px; font-size: 14px; }
+    .edit:hover { background: #4b5558; }
+
+    .delete { background: #e74c3c; padding: 6px 10px; }
+    .delete:hover { background: #c0392b; }
+
+    .bottom-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 16px;
+    }
+    #counter { color: #777; margin: 0; }
+    #clearButton { background: #636e72; font-size: 14px; }
+    #clearButton:hover { background: #4b5558; }
+
+    /* DARK MODE
+       Dark mode has its own calmer colors. "color-scheme: dark" tells the
+       browser to make its built-in parts dark too: the date picker icon,
+       tick boxes, dropdown menus and scrollbars. */
+    body.dark { background: #14141f; color-scheme: dark; }
+    body.dark .card {
+      background: #1f1f2e;
+      color: #e8e8f0;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    }
+    body.dark input[type="text"],
+    body.dark input[type="date"],
+    body.dark select {
+      background: #2a2a3d;
+      color: #e8e8f0;
+      border-color: #3d3d57;
+    }
+    body.dark input[type="text"]:focus,
+    body.dark input[type="date"]:focus,
+    body.dark select:focus {
+      outline: none;
+      border-color: #8b7cf6;
+    }
+    body.dark li { border-bottom-color: #34344a; }
+    body.dark .due,
+    body.dark .hint,
+    body.dark #counter { color: #9a9ab0; }
+    /* Overdue must come AFTER the grey rule above, or it turns grey! */
+    body.dark .due.overdue { color: #ff7b6b; }
+    body.dark li.done .task-text { color: #6b6b82; }
+    body.dark li.drag-over { box-shadow: 0 -3px 0 #8b7cf6; }
+    body.dark .tag.none { background: #6b7280; }
+
+    /* Dark mode buttons */
+    body.dark #addButton,
+    body.dark #darkButton,
+    body.dark .notify-btn { background: #7a6cf0; }
+    body.dark #addButton:hover,
+    body.dark #darkButton:hover,
+    body.dark .notify-btn:hover { background: #6a5ce0; }
+    body.dark .edit,
+    body.dark #clearButton { background: #3d3d57; }
+    body.dark .edit:hover,
+    body.dark #clearButton:hover { background: #4d4d6b; }
+    body.dark .delete { background: #c0392b; }
+    body.dark .delete:hover { background: #a93226; }
+    body.dark .filter-btn { background: #2a2a3d; color: #e8e8f0; }
+    body.dark .filter-btn:hover { background: #38384f; }
+    body.dark .filter-btn.active { background: #7a6cf0; color: white; }
+    body.dark .reminder { background: #3d3517; color: #ffe9a6; }
+    body.dark .reminder.urgent { background: #44211f; color: #f5b7b1; }
+  </style>
+</head>
+
+<body>
+  <!-- ================= HTML: THE THINGS ON THE PAGE ================= -->
+  <div class="card">
+
+    <div class="top-row">
+      <h1>My To-Do List</h1>
+      <button id="darkButton">Dark mode</button>
+    </div>
+
+    <!-- NEW R: the banner starts hidden. JavaScript shows it when a task
+         is overdue or due today. -->
+    <div id="reminderBanner" class="reminder" hidden></div>
+
+    <!-- NEW R: you press this once to allow pop-up notifications -->
+    <button id="notifyButton" class="notify-btn" hidden>Turn on reminders</button>
+    <p id="notifyHint" class="hint" hidden></p>
+
+    <div class="add-row">
+      <input type="text" id="taskInput" placeholder="What do you need to do?">
+
+      <select id="priorityInput">
+        <option value="high">High</option>
+        <option value="medium" selected>Medium</option>
+        <option value="low">Low</option>
+      </select>
+
+      <input type="date" id="dateInput">
+      <button id="addButton">Add</button>
+    </div>
+
+    <!-- NEW F: filter buttons. data-filter is a secret label that
+         JavaScript reads to know which button was pressed. -->
+    <div class="filter-row">
+      <button class="filter-btn" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="high">High</button>
+      <button class="filter-btn" data-filter="medium">Medium</button>
+      <button class="filter-btn" data-filter="low">Low</button>
+    </div>
+
+    <!-- NEW S2: the search box. Type here to find tasks. -->
+    <input type="text" id="searchInput" class="search-box" placeholder="Search your tasks...">
+
+    <!-- NEW E: a tip so people know they can edit -->
+    <p class="hint">Tip: double-click a task (or press Edit) to change its words. Click a colored tag to change its priority. On a computer, drag a task to move it up or down among tasks with the same priority.</p>
+
+    <ul id="taskList"></ul>
+
+    <!-- NEW F: shows a message when there is nothing to display -->
+    <p class="hint" id="emptyMessage"></p>
+
+    <!-- NEW N: shows how many tasks are left for each priority -->
+    <p class="hint" id="priorityCounts"></p>
+
+    <div class="bottom-row">
+      <p id="counter"></p>
+      <button id="clearButton">Clear done tasks</button>
+    </div>
+  </div>
+
+  <!-- ================= JAVASCRIPT: WHAT IT DOES ================= -->
+  <script>
+    // Step 1: Grab the things on the page using their name tags (ids).
+    const taskInput = document.getElementById("taskInput");
+    const priorityInput = document.getElementById("priorityInput");
+    const dateInput = document.getElementById("dateInput");
+    const addButton = document.getElementById("addButton");
+    const taskList = document.getElementById("taskList");
+    const counter = document.getElementById("counter");
+    const darkButton = document.getElementById("darkButton");
+    const clearButton = document.getElementById("clearButton");
+    const emptyMessage = document.getElementById("emptyMessage");          // NEW F
+    const filterButtons = document.querySelectorAll(".filter-btn");        // NEW F
+
+    // Step 2: Our list of tasks:
+    // { text: "Do homework", done: false, due: "2026-11-20", priority: "high" }
+    let tasks = [];
+
+    // NEW F: Which filter is on right now? "all", "high", "medium" or "low".
+    let currentFilter = "all";
+
+    // NEW S2: the search box, and the words typed in it (small letters only).
+    const searchInput = document.getElementById("searchInput");
+    let searchText = "";
+
+    // NEW R: the banner, the button and the hint for reminders
+    const reminderBanner = document.getElementById("reminderBanner");
+    const notifyButton = document.getElementById("notifyButton");
+    const notifyHint = document.getElementById("notifyHint");
+
+    // NEW N: the line that shows "Still to do: ..."
+    const priorityCounts = document.getElementById("priorityCounts");
+
+    // NEW D: remembers which task you are carrying while you drag.
+    // It is empty (null) when you are not dragging anything.
+    let draggedTask = null;
+
+    // Step 3: Load saved tasks.
+    try {
+      const saved = localStorage.getItem("myTasks");
+      if (saved) {
+        tasks = JSON.parse(saved);
+      }
+    } catch (error) {
+      // If loading fails, we just start with an empty list.
+    }
+
+    // Step 4: Save tasks.
+    function saveTasks() {
+      try {
+        localStorage.setItem("myTasks", JSON.stringify(tasks));
+      } catch (error) {
+        // The app still works even if saving fails.
+      }
+    }
+
+    // Today's date as text, like "2026-11-15".
+    function getToday() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      return year + "-" + month + "-" + day;
+    }
+
+    // Turns "2026-11-20" into "20 Nov 2026".
+    function prettyDate(dateText) {
+      const parts = dateText.split("-");
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return parts[2] + " " + months[Number(parts[1]) - 1] + " " + parts[0];
+    }
+
+    // Turns "high" into "High priority".
+    function priorityLabel(priority) {
+      if (priority === "high") { return "High priority"; }
+      if (priority === "medium") { return "Medium priority"; }
+      return "Low priority";
+    }
+
+    // Smaller number = comes first. Old tasks with no priority go last.
+    function priorityRank(priority) {
+      if (priority === "high") { return 0; }
+      if (priority === "medium") { return 1; }
+      if (priority === "low") { return 2; }
+      return 3;
+    }
+
+    // NEW A: Make the FIRST letter a capital. Only the first one!
+    // charAt(0) is the first letter, toUpperCase() makes it a capital,
+    // and slice(1) is all the rest of the words, left exactly as typed.
+    function capitalizeFirst(text) {
+      return text.charAt(0).toUpperCase() + text.slice(1);
+    }
+
+    // NEW A: Do this automatically WHILE you type in a box.
+    function autoCapitalize(box) {
+      box.addEventListener("input", function () {
+        const fixed = capitalizeFirst(box.value);
+        if (fixed !== box.value) {
+          // Remember where the typing cursor was, so it doesn't jump
+          const position = box.selectionStart;
+          box.value = fixed;
+          box.setSelectionRange(position, position);
+        }
+      });
+    }
+
+    // NEW P2: What priority comes after this one?
+    // High -> Medium -> Low -> High -> ... (it goes round in a circle)
+    function nextPriority(priority) {
+      if (priority === "high") { return "medium"; }
+      if (priority === "medium") { return "low"; }
+      return "high";    // after Low (or no priority) comes High
+    }
+
+    // Put the tasks in order: High, then Medium, then Low.
+    function sortTasks() {
+      tasks.sort(function (a, b) {
+        return priorityRank(a.priority) - priorityRank(b.priority);
+      });
+    }
+
+    // NEW C: CONFETTI! No extra tools needed. We draw tiny colored
+    // rectangles on a see-through canvas that covers the whole screen.
+    function launchConfetti() {
+      const canvas = document.createElement("canvas");
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      // pointer-events: none means clicks go straight through the confetti
+      canvas.style.cssText =
+        "position:fixed; top:0; left:0; width:100%; height:100%;" +
+        "pointer-events:none; z-index:999;";
+      document.body.appendChild(canvas);
+      const ctx = canvas.getContext("2d");
+
+      const colors = ["#e74c3c", "#f39c12", "#2ecc71", "#3498db", "#9b59b6", "#f1c40f"];
+
+      // Make 150 pieces. Each one gets a random place, speed and color.
+      const pieces = [];
+      for (let i = 0; i < 150; i++) {
+        pieces.push({
+          x: Math.random() * canvas.width,
+          y: -10 - Math.random() * canvas.height * 0.6,   // start above the screen
+          size: 6 + Math.random() * 6,
+          speedX: -2 + Math.random() * 4,                 // drift left or right
+          speedY: 2 + Math.random() * 4,                  // fall down
+          angle: Math.random() * Math.PI * 2,
+          spin: -0.2 + Math.random() * 0.4,
+          color: colors[Math.floor(Math.random() * colors.length)]
+        });
+      }
+
+      const startTime = Date.now();
+
+      // This function draws ONE picture (a "frame"). We call it again and
+      // again, many times a second, so the pieces look like they are moving.
+      function drawFrame() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        pieces.forEach(function (p) {
+          p.x += p.speedX;
+          p.y += p.speedY;
+          p.angle += p.spin;
+
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.angle);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+          ctx.restore();
+        });
+
+        // Keep going for 3.5 seconds, then remove the canvas.
+        if (Date.now() - startTime < 3500) {
+          requestAnimationFrame(drawFrame);
+        } else {
+          canvas.remove();
+        }
+      }
+
+      drawFrame();
+    }
+
+    // NEW E: Change the words of a task.
+    // "task" is the real task, and "info" is the box it lives in.
+    function startEditing(task, textElement, info) {
+      const editBox = document.createElement("input");
+      editBox.type = "text";
+      editBox.value = task.text;
+      editBox.classList.add("edit-box");
+      autoCapitalize(editBox);    // NEW A
+
+      // Swap the plain text for the editing box
+      info.replaceChild(editBox, textElement);
+
+      // NEW D: while you type, the task must not be draggable.
+      // Otherwise, selecting letters with the mouse would drag the task!
+      info.parentElement.draggable = false;
+      editBox.focus();
+      editBox.select();
+
+      // "finished" stops us from saving twice (Enter AND leaving the box)
+      let finished = false;
+
+      function finishEditing(shouldSave) {
+        if (finished) { return; }
+        finished = true;
+
+        if (shouldSave) {
+          const newText = capitalizeFirst(editBox.value.trim());   // NEW A
+          if (newText !== "") {          // don't allow an empty task
+            task.text = newText;
+          }
+        }
+        saveTasks();
+        showTasks();
+      }
+
+      editBox.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") { finishEditing(true); }      // save
+        if (event.key === "Escape") { finishEditing(false); }    // cancel
+      });
+      editBox.addEventListener("blur", function () {
+        finishEditing(true);             // clicking elsewhere saves too
+      });
+    }
+
+    // NEW R: ===================== REMINDERS =====================
+
+    // Some browsers can't show notifications. This checks if ours can.
+    function notificationsSupported() {
+      return typeof Notification !== "undefined";
+    }
+
+    // Count the tasks that are overdue or due today and show the banner.
+    function updateReminderBanner() {
+      const today = getToday();
+      let overdue = 0;
+      let dueToday = 0;
+
+      tasks.forEach(function (t) {
+        // Only tasks that are NOT done and HAVE a due date count
+        if (!t.done && t.due) {
+          if (t.due < today) {
+            overdue++;
+          } else if (t.due === today) {
+            dueToday++;
+          }
+        }
+      });
+
+      const parts = [];
+      if (overdue > 0) { parts.push(overdue + " overdue"); }
+      if (dueToday > 0) { parts.push(dueToday + " due today"); }
+
+      if (parts.length === 0) {
+        reminderBanner.hidden = true;       // nothing to remind you about
+        return;
+      }
+
+      reminderBanner.hidden = false;
+      reminderBanner.textContent = "Reminder: " + parts.join(", ");
+      // classList.toggle turns the red "urgent" look on or off
+      reminderBanner.classList.toggle("urgent", overdue > 0);
+    }
+
+    // Show the "Turn on reminders" button only when it makes sense.
+    function updateNotifyUI() {
+      try {
+        if (!notificationsSupported()) {
+          notifyButton.hidden = true;
+          notifyHint.hidden = true;
+          return;
+        }
+        // permission is "default" (not asked yet), "granted" or "denied"
+        notifyButton.hidden = Notification.permission !== "default";
+
+        if (Notification.permission === "denied") {
+          notifyHint.hidden = false;
+          notifyHint.textContent =
+            "Pop-up reminders are blocked. Allow notifications for this page in your browser settings.";
+        } else {
+          notifyHint.hidden = true;
+        }
+      } catch (error) {
+        notifyButton.hidden = true;
+        notifyHint.hidden = true;
+      }
+    }
+
+    // NEW I: Show one pop-up. Computers allow "new Notification", but
+    // phones don't. Phones need the service worker (sw.js) to show it.
+    function showNotification(title, body) {
+      try {
+        new Notification(title, { body: body });
+      } catch (error) {
+        if (navigator.serviceWorker) {
+          navigator.serviceWorker.getRegistration().then(function (registration) {
+            if (registration) {
+              registration.showNotification(title, { body: body, icon: "icon-192.png" });
+            }
+          });
+        }
+      }
+    }
+
+    // Send ONE pop-up listing the tasks that are due or overdue.
+    // Each task is only reminded once per day (lastReminded remembers when).
+    function sendReminders() {
+      try {
+        if (!notificationsSupported() || Notification.permission !== "granted") {
+          return;
+        }
+
+        const today = getToday();
+        const needReminder = tasks.filter(function (t) {
+          return !t.done && t.due && t.due <= today && t.lastReminded !== today;
+        });
+        if (needReminder.length === 0) {
+          return;
+        }
+
+        // Show up to 3 task names, then "and 2 more"
+        const names = needReminder.slice(0, 3).map(function (t) { return t.text; });
+        let body = names.join(", ");
+        if (needReminder.length > 3) {
+          body += " and " + (needReminder.length - 3) + " more";
+        }
+
+        showNotification("Tasks due today", body);
+
+        // Remember that we reminded you, so we don't repeat it all day
+        needReminder.forEach(function (t) { t.lastReminded = today; });
+        saveTasks();
+      } catch (error) {
+        // Some browsers don't allow this. The banner still works!
+      }
+    }
+
+    // Step 5: Draw the list on the screen.
+    function showTasks() {
+      sortTasks();
+      saveTasks();
+
+      taskList.innerHTML = "";
+
+      // NEW F: only keep the tasks that match the filter you picked.
+      // If the filter is "all", we keep everything.
+      // NEW S2: a task must pass BOTH tests: the priority filter AND the
+      // search. includes() checks if the task's words contain what you typed.
+      // toLowerCase() makes "Homework" and "homework" count as the same.
+      const visibleTasks = tasks.filter(function (task) {
+        const matchesFilter = currentFilter === "all" || task.priority === currentFilter;
+        const matchesSearch = task.text.toLowerCase().includes(searchText);
+        return matchesFilter && matchesSearch;
+      });
+
+      // NEW F: make the picked filter button purple
+      filterButtons.forEach(function (button) {
+        if (button.dataset.filter === currentFilter) {
+          button.classList.add("active");
+        } else {
+          button.classList.remove("active");
+        }
+      });
+
+      // NEW F: message when the list is empty
+      if (tasks.length === 0) {
+        emptyMessage.textContent = "No tasks yet. Add one above!";
+      } else if (visibleTasks.length === 0) {
+        if (searchText !== "") {
+          emptyMessage.textContent = "No tasks match your search.";    // NEW S2
+        } else {
+          emptyMessage.textContent = "No " + currentFilter + " priority tasks.";
+        }
+      } else {
+        emptyMessage.textContent = "";
+      }
+
+      visibleTasks.forEach(function (task) {
+        const li = document.createElement("li");
+        if (task.done) {
+          li.classList.add("done");
+        }
+        if (task.priority) {
+          li.classList.add("priority-" + task.priority);
+        }
+
+        // NEW D: DRAG AND DROP (works with a mouse on a computer).
+        // You can only move a task among tasks with the SAME priority,
+        // because the list always sorts High, then Medium, then Low.
+        li.draggable = true;
+
+        // You picked the task up
+        li.addEventListener("dragstart", function (event) {
+          draggedTask = task;
+          li.classList.add("dragging");
+          // Firefox needs some data attached, or the drag will not start
+          event.dataTransfer.setData("text/plain", task.text);
+          event.dataTransfer.effectAllowed = "move";
+        });
+
+        // You let go (anywhere). Clean up the purple lines.
+        li.addEventListener("dragend", function () {
+          draggedTask = null;
+          li.classList.remove("dragging");
+          document.querySelectorAll(".drag-over").forEach(function (el) {
+            el.classList.remove("drag-over");
+          });
+        });
+
+        // You are holding a task over this one.
+        // preventDefault() means "yes, you are allowed to drop here".
+        li.addEventListener("dragover", function (event) {
+          if (draggedTask && draggedTask !== task &&
+              draggedTask.priority === task.priority) {
+            event.preventDefault();
+            li.classList.add("drag-over");
+          }
+        });
+
+        // You moved away from this one
+        li.addEventListener("dragleave", function () {
+          li.classList.remove("drag-over");
+        });
+
+        // You dropped the task on this one!
+        li.addEventListener("drop", function (event) {
+          event.preventDefault();
+          if (!draggedTask || draggedTask === task ||
+              draggedTask.priority !== task.priority) {
+            return;
+          }
+          // Take the task out of the list, then put it back in the
+          // spot where the one you dropped on was.
+          const fromIndex = tasks.indexOf(draggedTask);
+          const toIndex = tasks.indexOf(task);
+          tasks.splice(fromIndex, 1);
+          tasks.splice(toIndex, 0, draggedTask);
+          draggedTask = null;
+          saveTasks();
+          showTasks();
+        });
+
+        // The tick box.
+        // NEW F: we now change "task" directly instead of using its
+        // position number. Why? With a filter on, the list on screen is
+        // shorter than the real list, so positions would not match!
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = task.done;
+        checkbox.addEventListener("change", function () {
+          task.done = checkbox.checked;
+          saveTasks();
+          showTasks();
+
+          // NEW C: you just ticked a task. Is EVERY task done now?
+          // every() checks if all tasks pass the test.
+          const allDone = tasks.every(function (t) { return t.done; });
+          if (checkbox.checked && allDone) {
+            launchConfetti();
+          }
+        });
+
+        // A box that holds the task text, tag and due date
+        const info = document.createElement("div");
+        info.classList.add("task-info");
+
+        const text = document.createElement("div");
+        text.classList.add("task-text");
+        text.textContent = task.text;
+        // NEW E: double-click the words to edit them
+        text.addEventListener("dblclick", function () {
+          startEditing(task, text, info);
+        });
+        info.appendChild(text);
+
+        // NEW P2: the tag is always shown now, and you can CLICK it.
+        // Each click moves the task to the next priority.
+        const tag = document.createElement("span");
+        tag.classList.add("tag");
+        if (task.priority) {
+          tag.classList.add(task.priority);
+          tag.textContent = priorityLabel(task.priority);
+        } else {
+          tag.classList.add("none");          // old tasks with no priority
+          tag.textContent = "No priority";
+        }
+        tag.title = "Click to change priority";
+        tag.addEventListener("click", function () {
+          task.priority = nextPriority(task.priority);
+          saveTasks();
+          showTasks();      // redraw, which also sorts the list again
+        });
+        info.appendChild(tag);
+
+        if (task.due) {
+          const due = document.createElement("div");
+          due.classList.add("due");
+
+          if (task.due < getToday() && !task.done) {
+            due.classList.add("overdue");
+            due.textContent = "Overdue! Due " + prettyDate(task.due);
+          } else {
+            due.textContent = "Due " + prettyDate(task.due);
+          }
+          info.appendChild(due);
+        }
+
+        // NEW E: the Edit button (works on phones, where double-click is hard)
+        const editButton = document.createElement("button");
+        editButton.textContent = "Edit";
+        editButton.classList.add("edit");
+        editButton.addEventListener("click", function () {
+          startEditing(task, text, info);
+        });
+
+        // The delete button.
+        // NEW F: indexOf finds where this task is in the REAL list.
+        const deleteButton = document.createElement("button");
+        deleteButton.textContent = "X";
+        deleteButton.classList.add("delete");
+        deleteButton.addEventListener("click", function () {
+          tasks.splice(tasks.indexOf(task), 1);
+          saveTasks();
+          showTasks();
+        });
+
+        li.appendChild(checkbox);
+        li.appendChild(info);
+        li.appendChild(editButton);
+        li.appendChild(deleteButton);
+        taskList.appendChild(li);
+      });
+
+      // NEW R: refresh the banner every time the list is drawn
+      updateReminderBanner();
+
+      // NEW N: count the tasks that are NOT done yet, for each priority.
+      const left = { high: 0, medium: 0, low: 0 };
+      tasks.forEach(function (t) {
+        // "left[t.priority] !== undefined" skips old tasks with no priority
+        if (!t.done && left[t.priority] !== undefined) {
+          left[t.priority]++;
+        }
+      });
+
+      // Build the sentence, skipping any priority that has 0 tasks left.
+      const parts = [];
+      if (left.high > 0) { parts.push(left.high + " High"); }
+      if (left.medium > 0) { parts.push(left.medium + " Medium"); }
+      if (left.low > 0) { parts.push(left.low + " Low"); }
+
+      if (parts.length > 0) {
+        priorityCounts.textContent = "Still to do: " + parts.join(", ");
+      } else {
+        priorityCounts.textContent = "";
+      }
+
+      // The counter always counts ALL tasks, even when a filter is on.
+      const doneCount = tasks.filter(function (t) { return t.done; }).length;
+      if (tasks.length > 0 && doneCount === tasks.length) {
+        counter.textContent = "All " + tasks.length + " done. Great job!";   // NEW C
+      } else {
+        counter.textContent = doneCount + " of " + tasks.length + " tasks done";
+      }
+    }
+
+    // Step 6: Add a new task.
+    function addTask() {
+      // NEW A: capitalizeFirst makes sure the task starts with a capital
+      const text = capitalizeFirst(taskInput.value.trim());
+      if (text === "") {
+        return;
+      }
+      tasks.push({
+        text: text,
+        done: false,
+        due: dateInput.value,
+        priority: priorityInput.value,
+        // NEW R: you just added it, so you already know about it today.
+        // This stops an instant pop-up for a task due today.
+        lastReminded: getToday()
+      });
+      taskInput.value = "";
+      dateInput.value = "";
+      priorityInput.value = "medium";
+      saveTasks();
+      showTasks();
+    }
+
+    // Step 7: Remove every task that is done.
+    function clearDoneTasks() {
+      tasks = tasks.filter(function (task) {
+        return !task.done;
+      });
+      saveTasks();
+      showTasks();
+    }
+
+    // Step 8: Turn dark mode on or off.
+    function setDarkMode(turnOn) {
+      if (turnOn) {
+        document.body.classList.add("dark");
+        darkButton.textContent = "Light mode";
+      } else {
+        document.body.classList.remove("dark");
+        darkButton.textContent = "Dark mode";
+      }
+      try {
+        localStorage.setItem("darkMode", turnOn ? "yes" : "no");
+      } catch (error) {
+        // Fine if this fails
+      }
+    }
+
+    // Step 9: Connect buttons to functions.
+    addButton.addEventListener("click", addTask);
+    autoCapitalize(taskInput);    // NEW A: capital letter while you type
+    taskInput.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        addTask();
+      }
+    });
+    clearButton.addEventListener("click", clearDoneTasks);
+    darkButton.addEventListener("click", function () {
+      setDarkMode(!document.body.classList.contains("dark"));
+    });
+
+    // NEW F: when you press a filter button, remember which one and redraw.
+    filterButtons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        currentFilter = button.dataset.filter;
+        showTasks();
+      });
+    });
+
+    // NEW S2: every time you type a letter in the search box ("input"),
+    // remember the words and redraw the list.
+    searchInput.addEventListener("input", function () {
+      searchText = searchInput.value.trim().toLowerCase();
+      showTasks();
+    });
+
+    // Step 10: When the page opens, restore dark mode and draw the list.
+    try {
+      if (localStorage.getItem("darkMode") === "yes") {
+        setDarkMode(true);
+      }
+    } catch (error) {
+      // Fine if this fails
+    }
+    showTasks();
+
+    // NEW R: start the reminders.
+    // 1. When you press the button, ask the browser for permission.
+    notifyButton.addEventListener("click", function () {
+      try {
+        Promise.resolve(Notification.requestPermission()).then(function () {
+          updateNotifyUI();
+          sendReminders();
+        });
+      } catch (error) {
+        updateNotifyUI();
+      }
+    });
+
+    // 2. Check once when the app opens.
+    updateNotifyUI();
+    sendReminders();
+
+    // 3. Then check again every minute while the app stays open.
+    //    If a new day has started, redraw so "Overdue!" labels are right.
+    let lastCheckedDay = getToday();
+    setInterval(function () {
+      if (getToday() !== lastCheckedDay) {
+        lastCheckedDay = getToday();
+        // Don't redraw while you are typing in an edit box
+        if (!document.querySelector(".edit-box")) {
+          showTasks();
+        }
+      }
+      updateReminderBanner();
+      sendReminders();
+    }, 60000);    // 60000 milliseconds = 1 minute
+
+    // NEW I: INSTALLABLE APP.
+    // A "service worker" is a helper file (sw.js) that lets the browser
+    // install the app and keep a copy for later. It only works when the
+    // app is hosted online (https), not when you open it as a file.
+    if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+      navigator.serviceWorker.register("sw.js").catch(function () {
+        // If it fails, the app still works. It just can't be installed.
+      });
+    }
+  </script>
+</body>
+</html>
